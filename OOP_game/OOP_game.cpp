@@ -1,237 +1,210 @@
 #include <SFML/Graphics.hpp>
+#include <vector>
 
-enum class Player
-{
-    None,
-    X,
-    O
+class SnakeSegment {
+public:
+
+    SnakeSegment(int x, int y) : position(x, y) {}
+    sf::Vector2i position;
 };
 
-class TicTacToe {
+class Snake {
 public:
-    TicTacToe() : actionsNumber(0), currentPlayer(Player::X), winner(Player::None)
-    {
-        resetBoard();
-    }
 
-    void reset()
-    {
-        resetBoard();
-        actionsNumber = 0;
-        currentPlayer = Player::X;
-        winner = Player::None;
-    }
+    enum Direction { UP, DOWN, LEFT, RIGHT };
 
-    bool isGameOver() const
-    {
-        return winner != Player::None || actionsNumber >= 9;
-    }
+    Snake(int l, int s, int x, int y) : length(l), speed(s) {
 
-    Player getCurrentPlayer() const
-    {
-        return currentPlayer;
-    }
-
-    Player getWinner() const
-    {
-        return winner;
-    }
-
-    void makeMove(int row, int col)
-    {
-        if (!isGameOver() && row >= 0 && row < gridSize && col >= 0 && col < gridSize && board[row][col] == Player::None)
+        for (int i = 0; i < l; i++)
         {
-            board[row][col] = currentPlayer;
-            checkForWinner(row, col);
-            currentPlayer = (currentPlayer == Player::X) ? Player::O : Player::X;
-            actionsNumber++;
-            return;
+            segments.push_back(SnakeSegment(x - i, y));
+        }
+    }
+
+    const std::vector<SnakeSegment>& getSegments() const {
+        return segments;
+    }
+
+    void setDirection(Direction dir) {
+        direction = dir;
+    }
+
+    Direction getDirection() const {
+        return direction;
+    }
+
+    void move() {
+
+        switch (direction) {
+
+        case UP:
+            moveBy(0, -speed);
+            break;
+        case DOWN:
+            moveBy(0, speed);
+            break;
+        case LEFT:
+            moveBy(-speed, 0);
+            break;
+        case RIGHT:
+            moveBy(speed, 0);
+            break;
+        }
+    }
+
+
+private:
+    std::vector<SnakeSegment> segments;
+    int length;
+    int speed;
+    Direction direction = RIGHT;
+
+    void moveBy(int dx, int dy) {
+
+        for (int i = segments.size() - 1; i > 0; --i) {
+
+            segments[i].position = segments[i - 1].position;
         }
 
-        reset();
+        segments[0].position.x += dx;
+        segments[0].position.y += dy;
     }
+};
 
-    Player getCell(int row, int col) const
-    {
-        return board[row][col];
+
+
+class SnakeGaming {
+public:
+
+    char (&getMatrix())[50][50]{
+        return matrix;
     }
 
 private:
-    const int gridSize = 3;
-    int actionsNumber = 0;
-    Player currentPlayer;
-    Player winner;
-    std::vector<std::vector<Player>> board;
-
-    void resetBoard()
-    {
-        board = std::vector<std::vector<Player>>(gridSize, std::vector<Player>(gridSize, Player::None));
-    }
-
-    void checkForWinner(int lastMoveRow, int lastMoveCol)
-    {
-        // Check row
-        if (board[lastMoveRow][0] == board[lastMoveRow][1] && board[lastMoveRow][1] == board[lastMoveRow][2])
-        {
-            winner = board[lastMoveRow][0];
-        }
-
-        // Check column
-        if (board[0][lastMoveCol] == board[1][lastMoveCol] && board[1][lastMoveCol] == board[2][lastMoveCol])
-        {
-            winner = board[0][lastMoveCol];
-        }
-
-        // Check diagonals
-        if ((lastMoveRow == lastMoveCol || lastMoveRow + lastMoveCol == gridSize - 1) &&
-            ((board[0][0] == board[1][1] && board[1][1] == board[2][2]) ||
-                (board[0][2] == board[1][1] && board[1][1] == board[2][0])))
-        {
-            winner = board[1][1];
-        }
-    }
+    char matrix[50][50];
 };
+
+
 
 class Renderer {
 public:
-    Renderer() : windowSize(300), cellSize(windowSize / 3)
-    {
-        initWindow();
+
+    Renderer(SnakeGaming& game) : game(game), snake(5, 1, 25, 25) {
+        window.create(sf::VideoMode(500, 500), "Snake gaming");
     }
 
-    void run(TicTacToe& game)
-    {
-        while (window.isOpen())
-        {
-            processEvents(game);
-            render(game);
-        }
-    }
-
-private:
-    const int windowSize;
-    const int cellSize;
-
-    sf::RenderWindow window;
-
-    void initWindow()
-    {
-        window.create(sf::VideoMode(windowSize, windowSize), "Tic-Tac-Toe");
-        window.setFramerateLimit(60);
-    }
-
-    void processEvents(TicTacToe& game)
-    {
-        sf::Event event;
-        while (window.pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed)
-            {
-                window.close();
-            }
-            else if (event.type == sf::Event::MouseButtonPressed)
-            {
-                if (event.mouseButton.button == sf::Mouse::Left)
-                {
-                    handleMouseClick(game, event.mouseButton.x, event.mouseButton.y);
-                }
-            }
-        }
-    }
-
-    void handleMouseClick(TicTacToe& game, int mouseX, int mouseY)
-    {
-        int row = mouseY / cellSize;
-        int col = mouseX / cellSize;
-        game.makeMove(row, col);
-    }
-
-    void render(const TicTacToe& game)
-    {
+    void draw() {
         window.clear();
 
-        // Draw grid
-        for (int i = 1; i < 3; ++i) {
-            sf::Vertex line[] = {
-                sf::Vertex(sf::Vector2f(i * cellSize, 0)),
-                sf::Vertex(sf::Vector2f(i * cellSize, windowSize)),
-                sf::Vertex(sf::Vector2f(0, i * cellSize)),
-                sf::Vertex(sf::Vector2f(windowSize, i * cellSize))
-            };
-            window.draw(line, 4, sf::Lines);
-        }
+        char(&matrix)[50][50] = game.getMatrix();
 
-        // Draw X and O based on the state of the board
-        for (int row = 0; row < 3; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                if (game.getCell(row, col) == Player::X) {
-                    drawX(row, col);
-                }
-                else if (game.getCell(row, col) == Player::O) {
-                    drawO(row, col);
+        for (int i = 0; i < 50; ++i) {
+
+            for (int j = 0; j < 50; ++j) {
+
+                if (matrix[i][j] != 0) {
+
+                    sf::RectangleShape rectangle(sf::Vector2f(10, 10));
+                    rectangle.setPosition(j * 10, i * 10);
+
+                    rectangle.setFillColor(sf::Color::Green);
+
+                    window.draw(rectangle);
                 }
             }
-        }
-
-        // Draw winner message
-        if (game.getWinner() != Player::None || game.isGameOver()) {
-            static sf::Font font;
-            bool bFontLoaded = false;
-            if (!bFontLoaded)
-            {
-                font.loadFromFile("C:\\Users\\markh\\OneDrive\\Documents\\Gamer repositories\\OOP\\OOP_game\\x64\\Debug\\Arial.ttf"); // Change the font file path as needed
-                bFontLoaded = true;
-            }
-
-            sf::Text text;
-            text.setFont(font);
-            text.setCharacterSize(30);
-            text.setFillColor(sf::Color::White);
-            sf::String Answer = (game.getWinner() == Player::X ? "Player X" : "Player O") + std::string(" wins!\nClick to restart.");
-            if (game.getWinner() == Player::None)
-            {
-                Answer = "Draw!\nClick to restart.";
-            }
-
-            text.setString(Answer);
-            text.setPosition(10, 10);
-            window.clear();
-            window.draw(text);
         }
 
         window.display();
     }
 
-    void drawX(int row, int col)
-    {
-        sf::Vertex line1[] = {
-            sf::Vertex(sf::Vector2f(col * cellSize + 10, row * cellSize + 10)),
-            sf::Vertex(sf::Vector2f((col + 1) * cellSize - 10, (row + 1) * cellSize - 10))
-        };
-        sf::Vertex line2[] = {
-            sf::Vertex(sf::Vector2f((col + 1) * cellSize - 10, row * cellSize + 10)),
-            sf::Vertex(sf::Vector2f(col * cellSize + 10, (row + 1) * cellSize - 10))
-        };
+    void renderSnake() {
 
-        window.draw(line1, 2, sf::Lines);
-        window.draw(line2, 2, sf::Lines);
+        auto segments = snake.getSegments();
+
+        for (auto segment : segments) {
+
+            sf::RectangleShape rect(sf::Vector2f(10, 10));
+
+            rect.setOrigin(5, 5);
+            rect.setPosition(segment.position.x * 10, segment.position.y * 10);
+            rect.setFillColor(sf::Color::Green);
+
+            window.draw(rect);
+
+        }
     }
 
-    void drawO(int row, int col)
-    {
-        sf::CircleShape circle(cellSize / 2 - 10);
-        circle.setPosition(col * cellSize + 10, row * cellSize + 10);
-        circle.setOutlineThickness(10);
-        circle.setOutlineColor(sf::Color::White);
+    void run(SnakeGaming& game) {
+        
+        sf::Clock clock;
+        float timeSinceLastMove = 0.0f;
+        float moveInterval = 1.0f / 10.0f;
 
-        window.draw(circle);
+        while (window.isOpen()) {
+
+            sf::Event event;
+
+            while (window.pollEvent(event)) {
+
+                if (event.type == sf::Event::Closed) {
+
+                    window.close();
+                }
+            }
+
+            handleInput();
+
+            float deltaTime = clock.restart().asSeconds();
+            timeSinceLastMove += deltaTime;
+
+            if (timeSinceLastMove >= moveInterval) {
+
+                update();
+                timeSinceLastMove = 0.0f;
+            }
+
+            window.clear();
+            renderSnake();
+            window.display();
+        }
+    }
+
+private:
+    sf::RenderWindow window;
+    SnakeGaming& game;
+    Snake snake;
+
+    void handleInput() {
+
+        Snake::Direction currentDirection = snake.getDirection();
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && currentDirection != Snake::DOWN) {
+
+            snake.setDirection(Snake::UP);
+        }
+        else if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) && currentDirection != Snake::UP) {
+
+            snake.setDirection(Snake::DOWN);
+        }
+        else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) && currentDirection != Snake::RIGHT) {
+
+            snake.setDirection(Snake::LEFT);
+        }
+        else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) && currentDirection != Snake::LEFT) {
+
+            snake.setDirection(Snake::RIGHT);
+        }
+    }
+
+    void update() {
+
+        snake.move();
     }
 };
 
-int main()
-{
-    TicTacToe game;
-    Renderer renderer;
+int main() {
+    SnakeGaming game;
+    Renderer renderer(game);
     renderer.run(game);
 
     return 0;
